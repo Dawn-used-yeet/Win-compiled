@@ -2,11 +2,11 @@ name: Build and Release Telegram Bot API
 
 on:
   push:
-    branches: [ main ]  # or 'master', depending on your default branch
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  version-and-build:
+  build:
     runs-on: windows-latest
     
     steps:
@@ -46,8 +46,48 @@ jobs:
         
     - name: Package
       run: |
-        mkdir artifacts
-        Copy-Item telegram-bot-api\bin\telegram-bot-api.exe artifacts\
+        mkdir compiled-files
+        Copy-Item bin\telegram-bot-api.exe compiled-files\
+        Copy-Item bin\libcrypto-3-x64.dll compiled-files\
+        Copy-Item bin\libssl-3-x64.dll compiled-files\
+        Copy-Item bin\zlib1.dll compiled-files\
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: telegram-bot-api-windows
+        path: compiled-files/*
+        retention-days: 5
+        
+    - name: Save version number
+      uses: actions/upload-artifact@v3
+      with:
+        name: version-info
+        path: |
+          echo "${{ steps.version.outputs.version }}" > version.txt
+          version.txt
+
+  create-release:
+    needs: build
+    runs-on: windows-latest
+    
+    steps:
+    - name: Download compiled files
+      uses: actions/download-artifact@v3
+      with:
+        name: telegram-bot-api-windows
+        path: release-files
+        
+    - name: Download version info
+      uses: actions/download-artifact@v3
+      with:
+        name: version-info
+        path: .
+        
+    - name: Read version
+      id: version
+      run: echo "version=$(Get-Content version.txt)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      shell: pwsh
         
     - name: Create Tag
       run: |
@@ -61,7 +101,10 @@ jobs:
       with:
         tag_name: ${{ steps.version.outputs.version }}
         files: |
-          artifacts/telegram-bot-api.exe
+          release-files/telegram-bot-api.exe
+          release-files/libcrypto-3-x64.dll
+          release-files/libssl-3-x64.dll
+          release-files/zlib1.dll
         draft: false
         prerelease: false
         generate_release_notes: true
