@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository.
+      # Check out the repository.
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Install required dependencies.
+      # Install system dependencies (including zip).
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -41,7 +41,7 @@ jobs:
           rm -rf build
           mkdir build
           cd build
-          # Configure CMake with clang-14 and libc++.
+          # Configure the build to use clang-14 with libc++.
           CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-14 CXX=/usr/bin/clang++-14 \
             cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. ..
           cmake --build . --target install
@@ -49,21 +49,21 @@ jobs:
           echo "Built binary:"
           ls -l bin/telegram-bot-api
 
-      # Prepare release artifacts by copying and zipping the binary.
+      # Prepare the release artifacts by copying and zipping the built binary.
       - name: Prepare Release Artifacts
         run: |
-          # Ensure the build directory exists.
-          mkdir -p build
-          # Copy the built binary into the build folder.
-          cp bin/telegram-bot-api telegram-bot-api/build/telegram-bot-api
-          # Zip the binary.
-          cd telegram-bot-api/build
+          # Create a dedicated release folder.
+          mkdir -p release
+          # Copy the built binary from its correct location.
+          cp telegram-bot-api/bin/telegram-bot-api release/telegram-bot-api
+          # Create a zip archive of the binary.
+          cd release
           zip telegram-bot-api.zip telegram-bot-api
-          cd ../../
+          cd ..
           echo "Release artifacts:"
-          ls -l telegram-bot-api/build/
+          ls -l release/
 
-      # Automatically create a release (with tag "latest") and attach the artifacts.
+      # Create (or update) the automatic release with the artifacts.
       - name: Automatic Release
         uses: marvinpinto/action-automatic-releases@latest
         with:
@@ -72,5 +72,5 @@ jobs:
           prerelease: false
           title: "Latest Build"
           files: |
-            telegram-bot-api/build/telegram-bot-api
-            telegram-bot-api/build/telegram-bot-api.zip
+            release/telegram-bot-api
+            release/telegram-bot-api.zip
