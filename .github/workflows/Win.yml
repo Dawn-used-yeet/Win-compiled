@@ -52,32 +52,28 @@ jobs:
       # Prepare the release artifacts by copying and zipping the built binary.
       - name: Prepare Release Artifacts
         run: |
-          # Create a dedicated release folder.
           mkdir -p release
-          # Copy the built binary from its correct location.
           cp telegram-bot-api/bin/telegram-bot-api release/telegram-bot-api
-          # Create a zip archive of the binary.
           cd release
           zip telegram-bot-api.zip telegram-bot-api
           cd ..
           echo "Release artifacts:"
           ls -l release/
 
-      # Create (or update) the automatic release with the artifacts.
-      # - name: Automatic Release
-      #   uses: marvinpinto/action-automatic-releases@latest
-      #   with:
-      #     repo_token: "${{ secrets.GITHUB_TOKEN }}"
-      #     automatic_release_tag: "latest"
-      #     prerelease: false
-      #     title: "Latest Build"
-      #     files: |
-      #       release/telegram-bot-api
-      #       release/telegram-bot-api.zip
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      # Upload the built artifacts as a workflow artifact.
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: 'latest'
+          name: telegram-bot-api-artifacts
+          path: release/
+
+      # Create the GitHub Release and attach the artifacts.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: latest
           files: |
             release/telegram-bot-api
             release/telegram-bot-api.zip
