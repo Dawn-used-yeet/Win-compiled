@@ -1,113 +1,37 @@
-name: Build and Release Telegram Bot API
+name: Publish package
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  build:
-    runs-on: windows-latest
-    
+  telegram-bot-api:
+    permissions: write-all
+    runs-on: ubuntu-latest
     steps:
-    - name: Get current date
-      id: date
-      run: echo "date=$(Get-Date -Format "yyyy.MM.dd")" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-      shell: pwsh
-      
-    - name: Generate version number
-      id: version
-      run: echo "version=v${{ steps.date.outputs.date }}.${{ github.run_number }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-      shell: pwsh
-      
-    - uses: actions/checkout@v3
-      with:
-        repository: 'tdlib/telegram-bot-api'
-        submodules: 'recursive'
-        
-    - name: Setup vcpkg
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    # Install Dependencies (updates only if needed)
+    - name: Install Dependencies
+      run: sudo apt update && sudo apt-get install -y zip libssl-dev zlib1g-dev g++ gperf cmake
+
+
+    - name: Clone repo, Configure and build
       run: |
-        git clone https://github.com/Microsoft/vcpkg.git
-        cd vcpkg
-        .\bootstrap-vcpkg.bat
-        .\vcpkg.exe install gperf:x64-windows openssl:x64-windows zlib:x64-windows
-        
-    - name: Configure CMake
-      run: |
-        Remove-Item build -Force -Recurse -ErrorAction SilentlyContinue
+        git clone --recursive https://github.com/tdlib/telegram-bot-api.git
+        cd telegram-bot-api
         mkdir build
         cd build
-        cmake -A x64 -DCMAKE_INSTALL_PREFIX:PATH=.. -DCMAKE_TOOLCHAIN_FILE:FILEPATH=..\vcpkg\scripts\buildsystems\vcpkg.cmake ..
-        
-    - name: Build
-      run: |
-        cd build
-        cmake --build . --target install --config Release
-        
-    - name: Package
-      run: |
-        mkdir compiled-files
-        Copy-Item bin\telegram-bot-api.exe compiled-files\
-        Copy-Item bin\libcrypto-3-x64.dll compiled-files\
-        Copy-Item bin\libssl-3-x64.dll compiled-files\
-        Copy-Item bin\zlib1.dll compiled-files\
-        
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: telegram-bot-api-windows
-        path: compiled-files/*
-        retention-days: 5
-        
-    - name: Save version number
-      uses: actions/upload-artifact@v3
-      with:
-        name: version-info
-        path: |
-          echo "${{ steps.version.outputs.version }}" > version.txt
-          version.txt
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        cmake --build .
+        zip telegram-bot-api.zip telegram-bot-api
 
-  create-release:
-    needs: build
-    runs-on: windows-latest
-    
-    steps:
-    - name: Download compiled files
-      uses: actions/download-artifact@v3
-      with:
-        name: telegram-bot-api-windows
-        path: release-files
-        
-    - name: Download version info
-      uses: actions/download-artifact@v3
-      with:
-        name: version-info
-        path: .
-        
-    - name: Read version
-      id: version
-      run: echo "version=$(Get-Content version.txt)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-      shell: pwsh
-        
-    - name: Create Tag
-      run: |
-        git tag ${{ steps.version.outputs.version }}
-        git push origin ${{ steps.version.outputs.version }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version.outputs.version }}
-        files: |
-          release-files/telegram-bot-api.exe
-          release-files/libcrypto-3-x64.dll
-          release-files/libssl-3-x64.dll
-          release-files/zlib1.dll
-        draft: false
+    - name: Automatic Release
+      uses: marvinpinto/action-automatic-releases@latest
+      with: 
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
         prerelease: false
-        generate_release_notes: true
-        name: Release ${{ steps.version.outputs.version }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        title: "Latest Build"
+        files: |
+          telegram-bot-api/build/telegram-bot-api
+          telegram-bot-api/build/telegram-bot-api.zip
